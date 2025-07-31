@@ -82,17 +82,334 @@
 </head>
 <body>
   <div class="sudoku-board" id="board"></div>
-  <button class="solve-button">Solve Sudoku</button>
+  <button id="btn" class="solve-button">Solve Sudoku</button>
 
   <script>
+    const button = document.getElementById("btn");
     const board = document.getElementById("board");
+    let debug = false;
+    let begun_solving = false;
+
+    function update(){
+        if (begun_solving){
+            initiate();
+        }
+    }
+
     for (let i = 0; i < 81; i++) {
       const input = document.createElement("input");
       input.className = "cell";
       input.type = "text";
       input.maxLength = 1;
       input.pattern = "[1-9]";
+      input.setAttribute("id", i);
+      input.setAttribute("autocomplete", "off");
+      input.onchange = function(){
+        update();
+      }
       board.appendChild(input);
+    }
+    
+    function solve(arr){
+        let NUM_NEWLY_ADDED = []
+        let n = 0
+        function boxes(){
+            let jarr = []
+            for (let i = 0;i<3;i++){
+                for (let j = 0;j<3;j++){
+                    let use = []
+                    use.push([arr[j*3][i*3], arr[j*3][i*3+1], arr[j*3][i*3+2]])
+                    use.push([arr[j*3+1][i*3], arr[j*3+1][i*3+1], arr[j*3+1][i*3+2]])
+                    use.push([arr[j*3+2][i*3], arr[j*3+2][i*3+1], arr[j*3+2][i*3+2]])
+                    jarr.push(use)
+                }
+            }
+            return jarr;
+        }
+
+        let box_reference = [[0,0], [3,0], [6,0], [0,3], [3,3], [6,3], [0,6], [3,6], [6,6]]
+        
+        function get_row(row_number){
+            return arr[row_number];
+        }
+
+        function get_column(col_number){
+            let use = [];
+            for (let i = 0;i<arr.length;i++){
+                use.push(arr[i][col_number]);
+            }
+            return use;
+        }
+
+        function dimensional_array_analysis(array_to_use){
+            let use = []
+            for (let i = 0;i<array_to_use.length;i++){
+                for (let j = 0;j<array_to_use[i].length;j++){
+                    use.push(array_to_use[i][j]);
+                }
+            }
+            return use;
+        }
+
+        function box_check(){
+            let box_added = 0;
+            for (let i = 0; i<9;i++){
+                let jarr = boxes();
+                let box = Array(...jarr[i]);
+                let uses = {1:0, 2:0, 3:0, 4:0, 5:0,6:0,7:0,8:0,9:0}
+                let specific_offset = box_reference[i];
+                let box_1d = Array(...dimensional_array_analysis(box))
+                for (let n = 1; n<10;n++){
+                    if (!box_1d.includes(n.toString())){
+                        for (let row = 0;row<3;row++){
+                            for (let col = 0;col<3;col++){
+                                if (box[row][col] == "_" || box[row][col].includes("*")){
+                                    let row_checkk = get_row(specific_offset[0]+row);
+                                    let col_checkk = get_column(specific_offset[1]+col);
+                                    if (!row_checkk.includes(n.toString()) && !col_checkk.includes(n.toString())){
+                                        if (box[row][col] == "_"){
+                                            box[row][col] = "";
+                                        }
+                                        box[row][col] += "*"+n.toString();
+                                        uses[n] += 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                for (let row = 0;row<3;row++){
+                    for (let col = 0; col<3;col++){
+                        let el = box[row][col];
+                        if (el.includes("*")){
+                            if (el.length == 2 && uses[parseInt(el[1])] == 1){
+                                box[row][col] = el[1];
+                                box_added++;
+                            } else if (el.length > 2){
+                                let different_els = el.split("*").slice(1);
+                                for (let l = 0; l<different_els.length;l++){
+                                    if (uses[parseInt(different_els[l])] == 1){
+                                        box_added++;
+                                        box[row][col] = different_els[l];
+                                    }
+                                }
+                            }
+
+                        }
+                    }
+                }
+
+                for (let row = 0; row<3;row++){
+                    for (let col = 0;col<3;col++){
+                        let el = box[row][col];
+                        if (el.includes("*")){
+                            box[row][col] = "_";
+                        }
+                        arr[specific_offset[0]+row][specific_offset[1]+col] = box[row][col];
+                    }
+                }
+
+            }
+
+            return box_added;
+        }
+
+        function single_box_check(row, col, n){
+            /*let l = -1;
+            for (let i = 0; i<box_reference.length;i++){
+                if (row >= box_reference[i][0] && box_reference[i][0]+2 >= row){
+                    if (col >= box_reference[i][1] && box_reference[i][1]+2 >= col){
+                        l = i;
+                        break;                        
+                    }
+                }
+            }
+            let jarr = boxes();
+            let box = jarr[l];
+            let box_1d = dimensional_array_analysis(box);
+            return box_1d.includes(n.toString());*/
+            let boxRow = Math.floor(row / 3);
+            let boxCol = Math.floor(col / 3);
+            let boxIndex = boxRow + boxCol * 3;
+            let jarr = boxes();
+            let box = jarr[boxIndex];
+            let box_1d = dimensional_array_analysis(box);
+            return box_1d.includes(n.toString());
+        }
+
+        function row_check(){
+            let row_added = 0;
+            for (let row = 0; row<9;row++){
+                let uses = {1:0, 2:0, 3:0, 4:0, 5:0,6:0,7:0,8:0,9:0}
+                let curr_row = Array(...arr[row]);
+                for (let n = 1;n<10;n++){
+                    if (!curr_row.includes(n.toString())){
+                        for (let i = 0; i<curr_row.length;i++){
+                            if (curr_row[i] == "_" || curr_row[i].includes("*")){
+                                let col_checkk = get_column(i);
+                                let ssb = single_box_check(row, i, n);
+                                if (!ssb && !col_checkk.includes(n.toString())){
+                                    if (curr_row[i] == "_"){
+                                        curr_row[i] = "";
+                                    }
+                                    curr_row[i] += "*"+n.toString();
+                                    uses[n]++;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                for (let i = 0;i<curr_row.length; i++){
+                    let el = curr_row[i];
+                    if (el.includes("*")){
+                        if (el.length == 2 && uses[parseInt(el[1])] == 1){
+                            row_added++;
+                            curr_row[i] = el[1];
+                        } else if (el.length > 2){
+                            let different_els = el.split("*").slice(1);
+                            for (let j = 0; j<different_els.length; j++){
+                                if (uses[parseInt(different_els[j])] == 1){
+                                    curr_row[i] = different_els[j];
+                                    row_added++;
+
+                                }
+                            }
+                        }
+                    }
+                }
+
+                for (let i = 0;i<curr_row.length;i++){
+                    let el = curr_row[i];
+                    if (el.includes("*")){
+                        curr_row[i] = "_";
+                    }
+                }
+                arr[row] = curr_row;
+            }
+            return row_added + col_check();
+        }
+
+        function col_check(){
+            let col_added = 0;
+            for (let col = 0; col<9;col++){
+                let uses = {1:0, 2:0, 3:0, 4:0, 5:0,6:0,7:0,8:0,9:0};
+                let curr_col = Array(...get_column(col));
+                for (let n = 1; n<10;n++){
+                    if (!curr_col.includes(n.toString())){
+                        for (let i = 0;i<curr_col.length;i++){
+
+                            if (curr_col[i] == "_" || curr_col[i].includes("*")){
+                                let row_checkk = get_row(i);
+                                let ssb = single_box_check(i, col, n);
+                                if (!ssb && !row_checkk.includes(n.toString())){
+                                    if (curr_col[i] == "_"){
+                                        curr_col[i] = "";
+                                    }
+                                    curr_col[i]+= "*"+n.toString();
+                                    uses[n]++;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                for (let i = 0;i<curr_col.length;i++){
+                    let el = curr_col[i];
+                    if (el.includes("*")){
+                        if (el.length == 2 && uses[parseInt(el[1])] == 1){
+                            col_added++;
+                            curr_col[i] = el[1]
+                        }
+                    } else if (el.length > 2){
+                        let different_els = el.split("*").slice(1);
+                        for (let j = 0;j<different_els.length;j++){
+                            if (uses[parseInt(different_els[j])] == 1){
+                                col_added++;
+                                curr_col[i] = j;
+                            }
+                        }
+                    }
+                }
+
+                for (let i = 0;i<curr_col.length;i++){
+                    let el = curr_col[i];
+                    if (el.includes("*")){
+                        curr_col[i] = "_"
+                    }
+                }
+
+                for (let i = 0;i<9;i++){
+                    arr[i][col] = curr_col[i];
+                }
+            }
+            return col_added + box_check();
+        }
+
+        function run(){
+            let sum = row_check();
+            NUM_NEWLY_ADDED.push(sum);
+        }
+        run();
+        run();
+        n = 1;
+        while (NUM_NEWLY_ADDED[n-1] > 0){
+            run();
+            n+=1;
+            if (n == 3000){
+                break;
+            }
+        }
+
+
+        console.log(arr);
+        return arr;
+    }
+
+    function grab_sudoku(){
+        let arr2 = [];
+        let use = [];
+        for (let k = 9; k<=81;k+=9){
+            for (let i = k-9;i<k;i++){
+                let el = document.getElementById(i.toString());
+                if (el.value.length > 0){
+                    use.push(el.value);
+                } else {
+                    use.push("_");
+                }
+            }
+            arr2.push([...use]);
+            use = [];
+        }
+        return arr2;
+    }
+
+    function initiate(){
+        button.innerHTML = "Thinking..."
+        button.style.cursor = "not-allowed";
+        begun_solving = true;
+        let arr = grab_sudoku();
+        let solved_arr = solve(arr);
+        for (let i = 0;i<9;i++){
+            let row = solved_arr[i];
+            for (let j = 0;j<9;j++){
+                if (row[j] == "_"){
+                    document.getElementById((i*9+j).toString()).value = "";
+                } else {
+                    document.getElementById((i*9+j).toString()).value = row[j];
+                }
+            }
+        }
+        if (!solved_arr.toString().includes("_")){
+            button.innerHTML = "Solved!";
+            button.style.cursor = "pointer";
+            begun_solving = false;
+        }
+    }
+
+    button.onclick = function(){
+        initiate();
     }
   </script>
 </body>
